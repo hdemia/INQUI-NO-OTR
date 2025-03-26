@@ -1,14 +1,10 @@
-
 #include <SPI.h>
 #include <TinyGPSPlus.h>
 #include <SD.h>
-#include "SdsDustSensor.h"
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WiFiAP.h>
 #include "arduino_secrets.h"
-#include <BME280I2C.h>
-#include <Wire.h>
 #include <esp_task_wdt.h>
 #include "SparkFun_Particle_Sensor_SN-GCJA5_Arduino_Library.h" 
 
@@ -138,8 +134,6 @@ void setup() {
   server.begin();
 
   esp_task_wdt_reset();
-
-  Wire.begin();
 
   if (SENSORE_PM.begin() == false)
   {
