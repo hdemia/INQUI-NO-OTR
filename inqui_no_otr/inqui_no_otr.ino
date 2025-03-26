@@ -1,9 +1,11 @@
+
 #include <SPI.h>
 #include <TinyGPSPlus.h>
 #include <SD.h>
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WiFiAP.h>
+#include <Wire.h>
 #include "arduino_secrets.h"
 #include <esp_task_wdt.h>
 #include "SparkFun_Particle_Sensor_SN-GCJA5_Arduino_Library.h" 
@@ -103,9 +105,16 @@ void setup() {
 
   esp_task_wdt_reset();
   Serial.println("PIN OK");
+  Wire.begin();
   delay(1000);
   esp_task_wdt_reset();
-  SENSORE_PM.begin(); 
+  if (SENSORE_PM.begin() == false)
+  {
+    Serial.println("The particle sensor did not respond. Please check wiring. Freezing...");
+    while (1)
+      ;
+  }
+  esp_task_wdt_reset();
   SPI.begin();
   Serial.println("CONFIGURING SD");
   while (!SD.begin()){
@@ -135,14 +144,6 @@ void setup() {
 
   esp_task_wdt_reset();
 
-  if (SENSORE_PM.begin() == false)
-  {
-    Serial.println("The particle sensor did not respond. Please check wiring. Freezing...");
-    while (1)
-      ;
-  }
-  esp_task_wdt_reset();
-
   uint32_t secondaryLogic_delay = 100;
   xTaskCreate(
     TaskSecondaryLogic
@@ -154,6 +155,7 @@ void setup() {
   );
 
   Serial.println("END OF SETUP");
+  buzzer(2);
 }
 
 void handleHTTPRequest() {
