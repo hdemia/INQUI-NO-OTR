@@ -40,6 +40,7 @@ void handleHTTPRequest();
 #define PSUPPLY_OFF_PIN D6
 #define OFF_REED_PIN D5
 
+float uxHighWaterMark = 0.0;
 
 /*
  LEGGE I VALORI DI PM2.5 E PM10 DAL SENSORE SN-GCJA5 E LI VISUALIZZA
@@ -57,15 +58,18 @@ uint32_t off_reed_timer = 0;
 
 void TaskSecondaryLogic( void *pvParameters );
 
+void _vTaskDelay(int delay){
+  vTaskDelay(delay / portTICK_PERIOD_MS);
+}
 
 void buzzer(int times, int t_delay){
   for(int i = 0; i<times; i++){
     esp_task_wdt_reset();
     digitalWrite(ALERT_PIN, HIGH);
-    delay(t_delay);
+    _vTaskDelay(t_delay);
     esp_task_wdt_reset();
     digitalWrite(ALERT_PIN, LOW);
-    delay(t_delay);
+    _vTaskDelay(t_delay);
     esp_task_wdt_reset();
   }
 }
@@ -98,7 +102,7 @@ void setup() {
 
   buzzer(3);
   
-  delay(5000);
+  _vTaskDelay(5000);
 
   esp_task_wdt_init(10, true);
   esp_task_wdt_add(NULL); 
@@ -106,7 +110,7 @@ void setup() {
   esp_task_wdt_reset();
   Serial.println("PIN OK");
   Wire.begin();
-  delay(1000);
+  _vTaskDelay(1000);
   esp_task_wdt_reset();
   if (SENSORE_PM.begin() == false)
   {
@@ -119,7 +123,7 @@ void setup() {
   Serial.println("CONFIGURING SD");
   while (!SD.begin()){
     Serial.println("SD:: Trying...");
-    delay(100);
+    _vTaskDelay(100);
   }; // stop until ok from microSD
   Serial.println("SD CONFIGURED");
   esp_task_wdt_reset();
@@ -131,13 +135,13 @@ void setup() {
     Serial.println("Creating access point failed");
     // don't continue
     while (true){
-      delay(100);
+      _vTaskDelay(100);
     }
   }
   esp_task_wdt_reset();
 
   // wait 100ms for connection:
-  delay(100);
+  _vTaskDelay(100);
 
   // start the web server on port 80
   server.begin();
@@ -155,7 +159,6 @@ void setup() {
   );
 
   Serial.println("END OF SETUP");
-  buzzer(2);
 }
 
 void handleHTTPRequest() {
@@ -197,6 +200,12 @@ void handleHTTPRequest() {
                           "<br>Sensors [PM2.5 (ug/m3), PM10 (ug/m3)]:  " + 
                           String(PM25).substring(0,5) + "    " + 
                           String(PM10).substring(0,5) + "</p><br><br>"));
+
+              // Secondary Task Stack Size Debug
+              client.print(String("<p>2nd Task High Water Mark: ") + String(uxHighWaterMark) + String("B</p>"));
+
+              client.print(String("<p>File we will write to: ") + String(FILE_NAME) + String("</p>"));
+              
               
               File root = SD.open("/");
               if (!root) {
@@ -304,7 +313,7 @@ void handleHTTPRequest() {
         }
       } else {
         // If no data available but client still connected, wait a bit
-        delay(1);
+        _vTaskDelay(1);
       }
     }
     
@@ -321,15 +330,15 @@ void CheckAndTurnOffTheStation(){
       if(off_reed_counter >= 4){
         Serial.println("TURNING OFF");
         digitalWrite(ALERT_PIN, HIGH);
-        delay(300);
+        _vTaskDelay(300);
         digitalWrite(ALERT_PIN, LOW);
         esp_task_wdt_reset();
         power_supply(false);
-        delay(200);
+        _vTaskDelay(200);
         power_supply(true);
-        delay(200);
+        _vTaskDelay(200);
         power_supply(false);
-        delay(200);
+        _vTaskDelay(200);
         power_supply(true);
       }
       off_reed_timer = millis();
@@ -343,10 +352,13 @@ void setFilename(){
   if(filename_date_fixed == false){
     if(gps.date.isValid()){
       getGPSDateTime();
-      Serial.println("DATETIME fixed");
-      FILE_NAME = "/" + DATE + STATION_ID ".CSV";
-      filename_date_fixed = true;
-      Serial.println("Filename: " + FILE_NAME);
+      if( DATE != "000000" ){
+        Serial.println("DATETIME fixed");
+        FILE_NAME = "/" + DATE + STATION_ID ".CSV";
+        filename_date_fixed = true;
+        Serial.println("Filename: " + FILE_NAME);
+      }
+      
     }
   }
 }
@@ -355,7 +367,7 @@ void GPSFixedLed(bool gpsFixed){
   if(gpsFixed == true && millis() - timer_led > 10 * 1000){
     timer_led = millis();
     digitalWrite(LED_PIN, HIGH);
-    delay(300);
+    _vTaskDelay(300);
     digitalWrite(LED_PIN, LOW);
     esp_task_wdt_reset();
   }
@@ -365,11 +377,11 @@ void GPSNotFixedLed(bool gpsFixed){
   if(gpsFixed == false && millis() - timer_led > 10 * 1000){
     timer_led = millis();
     digitalWrite(LED_PIN, HIGH);
-    delay(100);
+    _vTaskDelay(100);
     digitalWrite(LED_PIN, LOW);
-    delay(100);
+    _vTaskDelay(100);
     digitalWrite(LED_PIN, HIGH);
-    delay(100);
+    _vTaskDelay(100);
     digitalWrite(LED_PIN, LOW);
     esp_task_wdt_reset();
   }
@@ -443,7 +455,8 @@ void TaskSecondaryLogic(void *pvParameters){  // This is a task.
     CheckAndTurnOffTheStation();
     GPSFixedLed(gpsFixed);
     GPSNotFixedLed(gpsFixed);
-    delay(secondaryLogic_delay);
+    uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
+    _vTaskDelay(secondaryLogic_delay);
   }
 }
 
@@ -467,9 +480,11 @@ void loop() {
 
   while (gpsPort.available() > 0){
     gps.encode(gpsPort.read());
+    esp_task_wdt_reset();
   }
 
   handleHTTPRequest();
+  esp_task_wdt_reset();
 
   if (millis() - timer > 60 * 1000) {
     timer = millis(); // reset timer
@@ -480,7 +495,7 @@ void loop() {
       Serial.println("PM not ok");
       PmRetries++;
       PM_status=PMSensor_Status();  
-      delay(10);
+      _vTaskDelay(10);
       if(PmRetries == 5){
         break;
       }
