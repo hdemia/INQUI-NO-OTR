@@ -35,12 +35,17 @@ WiFiServer server(80);
 void handleHTTPRequest();
 
 
-#define LED_PIN D8
-#define ALERT_PIN D9
+#define LED1_PIN D8
+#define LED2_PIN D7
+#define BUZZER_PIN D9
 #define PSUPPLY_OFF_PIN D6
-#define OFF_REED_PIN D5
+#define OFF_BTN_PIN D5
+
+
 
 float uxHighWaterMark = 0.0;
+
+
 
 /*
  LEGGE I VALORI DI PM2.5 E PM10 DAL SENSORE SN-GCJA5 E LI VISUALIZZA
@@ -65,10 +70,10 @@ void _vTaskDelay(int delay){
 void buzzer(int times, int t_delay){
   for(int i = 0; i<times; i++){
     esp_task_wdt_reset();
-    digitalWrite(ALERT_PIN, HIGH);
+    digitalWrite(BUZZER_PIN, HIGH);
     _vTaskDelay(t_delay);
     esp_task_wdt_reset();
-    digitalWrite(ALERT_PIN, LOW);
+    digitalWrite(BUZZER_PIN, LOW);
     _vTaskDelay(t_delay);
     esp_task_wdt_reset();
   }
@@ -93,9 +98,9 @@ void getGPSDateTime(){
 
 void setup() {
   Serial.begin(115200);
-  pinMode(LED_PIN, OUTPUT);
-  pinMode(ALERT_PIN, OUTPUT);
-  pinMode(OFF_REED_PIN, INPUT_PULLUP);
+  pinMode(LED1_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(OFF_BTN_PIN, INPUT_PULLUP);
   pinMode(PSUPPLY_OFF_PIN, OUTPUT);
 
   power_supply(true);
@@ -324,14 +329,14 @@ void handleHTTPRequest() {
 }
 
 void CheckAndTurnOffTheStation(){
-  if(digitalRead(OFF_REED_PIN) == LOW){
+  if(digitalRead(OFF_BTN_PIN) == LOW){
     if(millis() - off_reed_timer > 300){
       off_reed_counter++;
       if(off_reed_counter >= 4){
         Serial.println("TURNING OFF");
-        digitalWrite(ALERT_PIN, HIGH);
+        digitalWrite(BUZZER_PIN, HIGH);
         _vTaskDelay(300);
-        digitalWrite(ALERT_PIN, LOW);
+        digitalWrite(BUZZER_PIN, LOW);
         esp_task_wdt_reset();
         power_supply(false);
         _vTaskDelay(200);
@@ -366,9 +371,9 @@ void setFilename(){
 void GPSFixedLed(bool gpsFixed){
   if(gpsFixed == true && millis() - timer_led > 10 * 1000){
     timer_led = millis();
-    digitalWrite(LED_PIN, HIGH);
+    digitalWrite(LED1_PIN, HIGH);
     _vTaskDelay(300);
-    digitalWrite(LED_PIN, LOW);
+    digitalWrite(LED1_PIN, LOW);
     esp_task_wdt_reset();
   }
 }
@@ -376,13 +381,13 @@ void GPSFixedLed(bool gpsFixed){
 void GPSNotFixedLed(bool gpsFixed){
   if(gpsFixed == false && millis() - timer_led > 10 * 1000){
     timer_led = millis();
-    digitalWrite(LED_PIN, HIGH);
+    digitalWrite(LED1_PIN, HIGH);
     _vTaskDelay(100);
-    digitalWrite(LED_PIN, LOW);
+    digitalWrite(LED1_PIN, LOW);
     _vTaskDelay(100);
-    digitalWrite(LED_PIN, HIGH);
+    digitalWrite(LED1_PIN, HIGH);
     _vTaskDelay(100);
-    digitalWrite(LED_PIN, LOW);
+    digitalWrite(LED1_PIN, LOW);
     esp_task_wdt_reset();
   }
 }
